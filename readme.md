@@ -23,4 +23,4 @@ Výstupom projektu je spracovaný požiadavok v tvare:
 # Spustenie prjektu
 make run PORT=*cislo*
 
-*cislo* je číslo PORTU na ktorom bude bežať server v rozmedzí 1023 < cilso < 65535
+*cislo* je číslo PORTU na ktorom bude bežať server v rozmedzí 1023 < *cislo* < 65535
