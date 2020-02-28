@@ -8,9 +8,19 @@ def getRequest(addr,flag):
     if (len(ip) != 2):
         errorGET(ip[0])
     if (flag):
-        dest = socket.gethostbyname(ip[0])     
+        try:
+            dest = socket.gethostbyname(ip[0])    
+        except:
+            connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
+            connection.close()
+            return "abort"
     else:
-        dest = socket.gethostbyaddr(ip[0])
+        try:
+            dest = socket.gethostbyaddr(ip[0])
+        except:
+            connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
+            connection.close()
+            return "abort"
     sub = re.sub("&type=",":",addr)
     if (sub == addr):
         errorGET(addr)
@@ -25,11 +35,11 @@ def getRequest(addr,flag):
 
 def errorGET(ptrn):
     if (re.search("HTTP/1.1",ptrn)):
-        connection.sendall(("HTTP/1.1 400 Bad Request\r\n\r\n").encode())
+        connection.sendall(("HTTP/1.1 400 Bad Request\r\n").encode())
         connection.close()
         return
     else:
-        connection.sendall(("500 Internal Server Error\r\n\r\n").encode())
+        connection.sendall(("500 Internal Server Error\r\n").encode())
         connection.close()
         return
 
@@ -80,9 +90,13 @@ if __name__ == "__main__":
                     if (str(typ[0]) == "A"):
                         flag = True        
                         data = getRequest(addr,flag)
+                        if (data == "abort"): 
+                            continue
                         sendAnswer(typ[1],data)
                     elif (str(typ[0]) == "PTR"):
                         data = getRequest(addr,flag)
+                        if (data == "abort"): 
+                            continue
                         sendAnswer(typ[1],data)
                     else:
                         errorGET(typ[1])
@@ -97,19 +111,39 @@ if __name__ == "__main__":
                     for i in range (0,len(splitArr)):
                         typ = splitArr[i].split(":")
                         if (len(typ) != 2):
-                            errorGET(typ[0])
+                            connection.sendall(("HTTP/1.1 400 Bad Request\r\n").encode())
+                            connection.close()
+                            flag = True
                             continue
                         if (str(typ[1]) == "A"):
-                            dest = socket.gethostbyname(typ[0]) 
+                            try:
+                                dest = socket.gethostbyname(typ[0]) 
+                            except:
+                                connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
+                                connection.close()
+                                flag = True
+                                continue
                             data += splitArr[i] + "=" + dest + "\r\n"
                         elif (str(typ[1]) == "PTR"):
-                            dest = socket.gethostbyaddr(typ[0]) 
+                            try:
+                                dest = socket.gethostbyaddr(typ[0]) 
+                            except:
+                                connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
+                                connection.close()
+                                flag = True
+                                continue
                             data += splitArr[i] + "=" + dest[0] + "\r\n"
-                        
-                    sendAnswer(protocol[2],data)
-                elif ((re.search(r"^POST\s", splitArr[0]) and re.search(r"^GET\s", splitArr[0])) == None):
+                        else:
+                            #errorGET(protocol[2])
+                            #flag = True
+                            continue
+                    if not flag:
+                        sendAnswer(protocol[2],data)
+                    else:
+                        continue
+                elif ((re.search(r"^POST\s", splitArr[0]) == None) and (re.search(r"^GET\s", splitArr[0]) == None)):
                     data = ''
-                    connection.sendall("HTTP/1.1 405 Method Not Allowed\r\n\r\n".encode())
+                    connection.sendall("HTTP/1.1 405 Method Not Allowed\r\n".encode())
                     connection.sendall(data.encode())
                     connection.close()
                     continue
@@ -124,6 +158,7 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         print("\nServer shutting down\n")
+        sys.exit(0)
 
     except Exception as exc:
         print(exc)
