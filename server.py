@@ -9,13 +9,22 @@ def getRequest(addr,flag):
         errorGET(ip[0])
     if (flag):
         try:
-            dest = socket.gethostbyname(ip[0])    
+            if (ip[0] == ""):
+                errorGET(ip[1])
+                return "abort"
+            dest = socket.gethostbyname(ip[0]) 
+            if (dest == ip[0]):
+                errorGET(ip[1])
+                return "abort"
         except:
             connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
             connection.close()
             return "abort"
     else:
         try:
+            if (not re.search(r'^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$',ip[0])):
+                errorGET(ip[1])
+                return "abort"
             dest = socket.gethostbyaddr(ip[0])
         except:
             connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
@@ -103,6 +112,7 @@ if __name__ == "__main__":
                         continue
                 elif (re.search(r"^POST\s\/dns-query\s",splitArr[0])):
                     data = ''
+                    wrongRequest = 0
                     protocol = splitArr[0].split(" ")
                     if (len(protocol) <= 1):
                         errorGET(splitArr[0])
@@ -111,36 +121,39 @@ if __name__ == "__main__":
                     for i in range (0,len(splitArr)):
                         typ = splitArr[i].split(":")
                         if (len(typ) != 2):
-                            connection.sendall(("HTTP/1.1 400 Bad Request\r\n").encode())
-                            connection.close()
-                            flag = True
+                            wrongRequest += 1
                             continue
                         if (str(typ[1]) == "A"):
                             try:
-                                dest = socket.gethostbyname(typ[0]) 
+                                if (typ[0] == ""):
+                                    wrongRequest += 1
+                                    continue
+                                dest = socket.gethostbyname(typ[0])
+                                if (dest == typ[0]):
+                                    wrongRequest += 1
+                                    continue
                             except:
-                                connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
-                                connection.close()
-                                flag = True
+                                wrongRequest += 1
                                 continue
                             data += splitArr[i] + "=" + dest + "\r\n"
                         elif (str(typ[1]) == "PTR"):
                             try:
+                                if (not re.search(r'^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$',typ[0])):
+                                    wrongRequest += 1
+                                    continue
                                 dest = socket.gethostbyaddr(typ[0]) 
                             except:
-                                connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
-                                connection.close()
-                                flag = True
+                                wrongRequest += 1
                                 continue
                             data += splitArr[i] + "=" + dest[0] + "\r\n"
                         else:
-                            #errorGET(protocol[2])
-                            #flag = True
-                            continue
-                    if not flag:
-                        sendAnswer(protocol[2],data)
-                    else:
+                            wrongRequest += 1;
+                    if (wrongRequest == len(splitArr)):
+                        connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
+                        connection.close()
                         continue
+                    elif not flag:
+                        sendAnswer(protocol[2],data)
                 elif ((re.search(r"^POST\s", splitArr[0]) == None) and (re.search(r"^GET\s", splitArr[0]) == None)):
                     data = ''
                     connection.sendall("HTTP/1.1 405 Method Not Allowed\r\n".encode())
@@ -160,7 +173,5 @@ if __name__ == "__main__":
         print("\nServer shutting down\n")
         sys.exit(0)
 
-    except Exception as exc:
-        print(exc)
     sckt.close()
     sys.exit(0)
