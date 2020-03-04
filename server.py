@@ -119,10 +119,25 @@ if __name__ == "__main__":
                         continue
                     splitArr = splitArr[7:]
                     for i in range (0,len(splitArr)):
-                        typ = splitArr[i].split(":")
-                        if (len(typ) != 2):
-                            wrongRequest += 1
-                            continue
+                        if (re.search(r'[:\s]A$|[\s*](A\s*)$',splitArr[i])):
+                            typ = splitArr[i].split(":")
+                            if (len(typ) != 2):
+                                wrongRequest += 1
+                                continue
+                            typ[0] = typ[0].strip()
+                            typ[1] = typ[1].strip()
+                        elif (re.search(r'[:\s]PTR$|[\s*](PTR\s*)$',splitArr[i])):
+                            typ = splitArr[i].split(":")
+                            if (len(typ) != 2):
+                                wrongRequest += 1
+                                continue
+                            typ[0] = typ[0].strip()
+                            typ[1] = typ[1].strip()
+                        else:
+                            typ = splitArr[i].split(":")
+                            if (len(typ) != 2):
+                                wrongRequest += 1
+                                continue
                         if (str(typ[1]) == "A"):
                             try:
                                 if (typ[0] == ""):
@@ -135,7 +150,7 @@ if __name__ == "__main__":
                             except:
                                 wrongRequest += 1
                                 continue
-                            data += splitArr[i] + "=" + dest + "\r\n"
+                            data += typ[0] + ":" + typ[1] + "=" + dest + "\r\n"
                         elif (str(typ[1]) == "PTR"):
                             try:
                                 if (not re.search(r'^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$',typ[0])):
@@ -145,7 +160,7 @@ if __name__ == "__main__":
                             except:
                                 wrongRequest += 1
                                 continue
-                            data += splitArr[i] + "=" + dest[0] + "\r\n"
+                            data += typ[0] + ":" + typ[1] + "=" + dest[0] + "\r\n"
                         else:
                             wrongRequest += 1;
                     if (wrongRequest == len(splitArr)):
