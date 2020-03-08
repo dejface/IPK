@@ -12,6 +12,7 @@ Pomocou knižnice ***socket*** som vytvoril najprv server, potom som nastavil ko
 Program podporuje metódy POST a GET.
 
 Pri metóde GET úspešné spracovaná požiadavka vracia HTTP respone 200 OK, neúspešná 400 bad request.
+
 Pri metóde POST pokiaľ je aspoň jeden požiadavok platný a nájde odpoveď, HTTP response je 200 OK. Pokiaľ nie je nájdená odpoveď a niektorí z požiadavkov nie je validný, HTTP response je 400 Bad Request. Pokiaľ sa nenájde žiadna odpoveď na požiadavky, HTTP response je 404 Not Found.
 
 Server je ukončený po stlačení klávesovej kombinácie **CTRL + C**.
