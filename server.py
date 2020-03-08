@@ -162,12 +162,19 @@ if __name__ == "__main__":
                                 continue
                             data += typ[0] + ":" + typ[1] + "=" + dest[0] + "\r\n"
                         else:
-                            wrongRequest += 1;
+                            wrongRequest += 1
+                            flag = True
+                            continue
                     if (wrongRequest == len(splitArr)):
-                        connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
-                        connection.close()
-                        continue
-                    elif not flag:
+                        if not flag:
+                            connection.sendall(("HTTP/1.1 404 Not Found\r\n").encode())
+                            connection.close()
+                            continue 
+                        else:
+                            connection.sendall(("HTTP/1.1 400 Bad Request\r\n").encode())
+                            connection.close()
+                            continue
+                    else:
                         sendAnswer(protocol[2],data)
                 elif ((re.search(r"^POST\s", splitArr[0]) == None) and (re.search(r"^GET\s", splitArr[0]) == None)):
                     data = ''
