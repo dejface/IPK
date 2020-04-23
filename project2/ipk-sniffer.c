@@ -1,13 +1,120 @@
+/*******************************************************************************
+ * File: ipk-sniffer.c
+ * Author: David Oravec (xorave05)
+ * Description: - Packet sniffer implemented in C
+ *              - sniffs packets on specified interface
+ * 
+ * Note: Down below are LICENSE terms, because I took som fragments of code
+ *       from the internet. Some of them were modified, some of them not.
+ *       Every fragment is more specified in the code.
+ *******************************************************************************/
+
+
+/*
+ * sniffex.c
+ *
+ * Sniffer example of TCP/IP packet capture using libpcap.
+ *
+ * Version 0.1.1 (2005-07-05)
+ * Copyright (c) 2005 The Tcpdump Group
+ *
+ * This software is intended to be used as a practical example and
+ * demonstration of the libpcap library; available at:
+ * http://www.tcpdump.org/
+ *
+ ****************************************************************************
+ *
+ * This software is a modification of Tim Carstens' "sniffer.c"
+ * demonstration source code, released as follows:
+ *
+ * sniffer.c
+ * Copyright (c) 2002 Tim Carstens
+ * 2002-01-07
+ * Demonstration of using libpcap
+ * timcarst -at- yahoo -dot- com
+ *
+ * "sniffer.c" is distributed under these terms:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. The name "Tim Carstens" may not be used to endorse or promote
+ *    products derived from this software without prior written permission
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ * <end of "sniffer.c" terms>
+ *
+ * This software, "sniffex.c", is a derivative work of "sniffer.c" and is
+ * covered by the following terms:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Because this is a derivative work, you must comply with the "sniffer.c"
+ *    terms reproduced above.
+ * 2. Redistributions of source code must retain the Tcpdump Group copyright
+ *    notice at the top of this source file, this list of conditions and the
+ *    following disclaimer.
+ * 3. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. The names "tcpdump" or "libpcap" may not be used to endorse or promote
+ *    products derived from this software without prior written permission.
+ *
+ * THERE IS ABSOLUTELY NO WARRANTY FOR THIS PROGRAM.
+ * BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+ * FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
+ * OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+ * PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED
+ * OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.  THE ENTIRE RISK AS
+ * TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.  SHOULD THE
+ * PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING,
+ * REPAIR OR CORRECTION.
+ *
+ * IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+ * WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+ * REDISTRIBUTE THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
+ * INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
+ * OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED
+ * TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
+ * YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
+ * PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGES.
+ * <end of "sniffex.c" terms>
+ *
+ ****************************************************************************
+ */
+
+
 #include "ipk-sniffer.h"
 
 /* structs prototypes for gethostbyaddr() */
 struct hostent* he;
 struct in_addr addr, addr2;
+struct in6_addr addrIPV6, addrIPV6_2;
 struct sockaddr_in source, dest;
+struct sockaddr_in6 sourceIPV6, destIPV6;
 
 /* global variables */
 char tempBuf[256], buf[1024];
 static int count = 0;
+bool ipv6 = false;              //ipv6 flag
 
 /* struct which holds user params from commandline */
 struct userArgs {
@@ -42,42 +149,42 @@ int parseArgs(int argc, char** argv) {
     int opt;
     int port;
     char* endptr = NULL;
-
-    while ((opt = getopt(argc, argv, ":i:p:tun:")) != -1) {
+    opterr = 0;
+    while ((opt = getopt(argc, argv, "i:p:tun:")) != -1) {
         switch (opt) {
-        // interface option
+            // interface option
         case 'i':
             userArgs.interface = optarg;
             userArgs.interfaceSet = true;
-	    break;
+            break;
 
-        // port option
+            // port option
         case 'p':
             port = (int)strtol(optarg, &endptr, 10);
             if (*endptr) {
                 fprintf(stderr, "Wrong port (-p) value!\n");
                 return 1;
             }
-	    if (port < 1024 || port > 65535) {
-		fprintf(stderr, "Wrong port (-p) value!\n"\
-		                "Must be in range 1024 <= port <= 65535\n");
-		return 1;
-	    }
+            if (port < 1 || port > 65535) {
+                fprintf(stderr, "Wrong port (-p) value!\n"\
+                    "Must be in range 1 <= port <= 65535\n");
+                return 1;
+            }
             sprintf(userArgs.port, "port %d", port);
             userArgs.portSet = true;
             break;
 
-        // if set, only tcp packets will be shown
+            // if set, only tcp packets will be shown
         case 't':
             userArgs.tcp = true;
             break;
 
-        // if set, only udp packets will be shown
+            // if set, only udp packets will be shown
         case 'u':
             userArgs.udp = true;
             break;
 
-        // number of packets to be shown
+            // number of packets to be shown
         case 'n':
             userArgs.packetNumber = (int)strtol(optarg, &endptr, 10);
             if (*endptr) {
@@ -90,8 +197,19 @@ int parseArgs(int argc, char** argv) {
                 return 1;
             }
             break;
+        case ':':
+            printf("%d", optopt);
 
         default:
+            if (optopt == 105) break;
+            if (optopt == 110) {
+                fprintf(stderr, "Missing number of packets (-n) value!\n");
+                return 1;
+            }
+            if (optopt == 112) {
+                fprintf(stderr, "Missing port number (-p)!\n");
+                return 1;
+            }
             fprintf(stderr, "Wrong parameter!\n");
             return 1;
         }
@@ -104,21 +222,41 @@ int parseArgs(int argc, char** argv) {
 */
 void processPacket(u_char* args, const struct pcap_pkthdr* header, const u_char* buffer) {
 
+    const struct ether_header* ethernet_header; //ethernet header
     int size = header->len;
     struct iphdr* iph = (struct iphdr*)(buffer + sizeof(struct ethhdr));
+    ethernet_header = (struct ether_header*)(buffer);
+    if (ntohs(ethernet_header->ether_type) == ETHERTYPE_IPV6) {     // if ETHERTYPE is IPV6, flag is set to true
+        ipv6 = true;
+    }
 
-    switch (iph->protocol) //Check the Protocol and do accordingly...
-    {
-    case 6:  //TCP Protocol
-        printTCP(buffer, size);
-        break;
+    if (ipv6) {
+        const struct ip6_hdr* ipv6Hdr;
+        ipv6Hdr = (struct ip6_hdr*)(buffer + sizeof(struct ethhdr));
+        int protocol = ipv6Hdr->ip6_nxt;
 
-    case 17: //UDP Protocol
-        printUDP(buffer, size);
-        break;
+        if (protocol == 6) {            //TCP protocol
+            printTCP(buffer, size);
+        }
+        else if (protocol == 17) {      //UDP protocol
+            printUDP(buffer, size);
+        }
 
-    default:
-        break;
+    } else {
+
+        switch (iph->protocol) //Check the Protocol and do accordingly...
+        {
+        case 6:  //TCP Protocol
+            printTCP(buffer, size);
+            break;
+
+        case 17: //UDP Protocol
+            printUDP(buffer, size);
+            break;
+
+        default:
+            break;
+        }
     }
 }
 
@@ -214,7 +352,7 @@ void dataFlush(const u_char* payload, int len, int hdrlen) {
     for (;; ) {
         /* compute current line length */
         line_len = line_width % len_rem;
-        
+
         /* splitting header from payload */
         if ((len_rem - (len - hdrlen)) < 16) {
             if (flag == false) {
@@ -259,6 +397,8 @@ void getTimestamp(const u_char* Buffer, int Size) {
 
     struct iphdr* iph = (struct iphdr*)(Buffer + sizeof(struct ethhdr));
     unsigned short iphdrlen = iph->ihl * 4;
+    const struct ip6_hdr* ipv6Hdr = (struct ip6_hdr*)(Buffer + sizeof(struct ethhdr));
+    unsigned short ip6hdrlen = 5 * 8;
 
     /* Getting timestamp and writing the header of packet*/
     struct timeval tv;
@@ -272,34 +412,72 @@ void getTimestamp(const u_char* Buffer, int Size) {
     strftime(tempBuf, sizeof(tempBuf), "%H:%M:%S", nowtm);          // time is written to tempBuf
     snprintf(buf, sizeof(buf), "%s.%06ld", tempBuf, tv.tv_usec);    // appending microseconds to tempBuf and storing it in buf
 
-    /* Get host name, if it is not possible, ip will be written*/
-    memset(&source, 0, sizeof(source));
-    source.sin_addr.s_addr = iph->saddr;
+    /* Getting hostname for ipv6 IP address */
+    if (ipv6) {
+        memset(&source, 0, sizeof(source));
+        sourceIPV6.sin6_addr = ipv6Hdr->ip6_src;
 
-    memset(&dest, 0, sizeof(dest));
-    dest.sin_addr.s_addr = iph->daddr;
+        memset(&dest, 0, sizeof(dest));
+        destIPV6.sin6_addr = ipv6Hdr->ip6_dst;
 
-    source.sin_family = AF_INET;
-    dest.sin_family = AF_INET;
+        sourceIPV6.sin6_family = AF_INET6;
+        destIPV6.sin6_family = AF_INET6;
 
-    addr = source.sin_addr;
-    addr2 = dest.sin_addr;
+        addrIPV6 = sourceIPV6.sin6_addr;
+        addrIPV6_2 = destIPV6.sin6_addr;
 
-    snprintf(tempBuf, sizeof(tempBuf), "%s", buf);
-    memset(buf, 0, sizeof(buf));
+        snprintf(tempBuf, sizeof(tempBuf), "%s", buf);
+        memset(buf, 0, sizeof(buf));
 
-    if (he = (gethostbyaddr((const void*)&addr, sizeof(addr), AF_INET)))
-        snprintf(buf, sizeof(buf), "%s %s :", tempBuf, he->h_name);
-    else
-        snprintf(buf, sizeof(buf), "%s %s :", tempBuf, inet_ntoa(source.sin_addr));
+        if (he = (gethostbyaddr((const void*)&addrIPV6, sizeof(addrIPV6), AF_INET6)))
+            snprintf(buf, sizeof(buf), "%s %s :", tempBuf, he->h_name);
+        else {
+            char srcIPV6[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &(ipv6Hdr->ip6_src), srcIPV6, INET6_ADDRSTRLEN);
+            snprintf(buf, sizeof(buf), "%s %s :", tempBuf, srcIPV6);
+        }
 
-    he = 0;
-    memset(tempBuf, 0, sizeof(tempBuf));
+        he = 0;
+        memset(tempBuf, 0, sizeof(tempBuf));
 
-    if (he = (gethostbyaddr((const void*)&addr2, sizeof(addr2), AF_INET)))
-        snprintf(tempBuf, sizeof(tempBuf), "%s :", he->h_name);
-    else
-        snprintf(tempBuf, sizeof(tempBuf), "%s :", inet_ntoa(dest.sin_addr));
+        if (he = (gethostbyaddr((const void*)&addrIPV6_2, sizeof(addrIPV6_2), AF_INET6)))
+            snprintf(tempBuf, sizeof(tempBuf), "%s :", he->h_name);
+        else {
+            char dstIPV6[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &(ipv6Hdr->ip6_dst), dstIPV6, INET6_ADDRSTRLEN);
+            snprintf(tempBuf, sizeof(tempBuf), "%s :", dstIPV6);
+        }
+
+    } else {
+        /* Get host name, if it is not possible, ip will be written*/
+        memset(&source, 0, sizeof(source));
+        source.sin_addr.s_addr = iph->saddr;
+
+        memset(&dest, 0, sizeof(dest));
+        dest.sin_addr.s_addr = iph->daddr;
+
+        source.sin_family = AF_INET6;
+        dest.sin_family = AF_INET6;
+
+        addr = source.sin_addr;
+        addr2 = dest.sin_addr;
+
+        snprintf(tempBuf, sizeof(tempBuf), "%s", buf);
+        memset(buf, 0, sizeof(buf));
+
+        if (he = (gethostbyaddr((const void*)&addr, sizeof(addr), AF_INET)))
+            snprintf(buf, sizeof(buf), "%s %s :", tempBuf, he->h_name);
+        else
+            snprintf(buf, sizeof(buf), "%s %s :", tempBuf, inet_ntoa(source.sin_addr));
+
+        he = 0;
+        memset(tempBuf, 0, sizeof(tempBuf));
+
+        if (he = (gethostbyaddr((const void*)&addr2, sizeof(addr2), AF_INET)))
+            snprintf(tempBuf, sizeof(tempBuf), "%s :", he->h_name);
+        else
+            snprintf(tempBuf, sizeof(tempBuf), "%s :", inet_ntoa(dest.sin_addr));
+    }
 }
 
 /* Function which prints header of IPK project and TCP packet*/
@@ -312,14 +490,26 @@ void printTCP(const u_char* Buffer, int Size) {
     unsigned short iphdrlen = iph->ihl * 4;
     struct tcphdr* tcph = (struct tcphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
 
+    const struct ip6_hdr* ipv6Hdr = (struct ip6_hdr*)(Buffer + sizeof(struct ethhdr));
+    unsigned short ip6hdrlen = 5 * 8;   // ipv6hdrlen
+    struct tcphdr* tcph6 = (struct tcphdr*)(Buffer + ip6hdrlen + sizeof(struct ethhdr));
+
     getTimestamp(Buffer, Size);
     char finalBuf[1024];
-
-    snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(tcph->source), tempBuf, ntohs(tcph->dest));
-    printf("%s\n\n", finalBuf);
-    int hdrlen = iphdrlen + 14 + tcph->doff * 4;
-    dataFlush(Buffer, Size, hdrlen);
-    count--;
+    if (ipv6) {
+        snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(tcph6->source), tempBuf, ntohs(tcph6->dest));
+        printf("%s\n\n", finalBuf);
+        int hdrlen = ip6hdrlen + 14 + tcph6->doff * 4;
+        dataFlush(Buffer, Size, hdrlen);
+        count--;
+    }
+    else {
+        snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(tcph->source), tempBuf, ntohs(tcph->dest));
+        printf("%s\n\n", finalBuf);
+        int hdrlen = iphdrlen + 14 + tcph->doff * 4;
+        dataFlush(Buffer, Size, hdrlen);
+        count--;
+    }
 }
 
 void printUDP(const u_char* Buffer, int Size) {
@@ -331,14 +521,28 @@ void printUDP(const u_char* Buffer, int Size) {
     unsigned short iphdrlen = iph->ihl * 4;
     struct udphdr* udph = (struct udphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
 
+    const struct ip6_hdr* ipv6Hdr = (struct ip6_hdr*)(Buffer + sizeof(struct ethhdr));
+    unsigned short ip6hdrlen = 5 * 8;   //ipv6hdrlen
+    struct udphdr* udph6 = (struct udphdr*)(Buffer + ip6hdrlen + sizeof(struct ethhdr));
+
     getTimestamp(Buffer, Size);
     char finalBuf[1024];
 
-    snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(udph->source), tempBuf, ntohs(udph->dest));
-    printf("%s\n\n", finalBuf);
-    int hdrlen = iphdrlen + 14 + sizeof udph;
-    dataFlush(Buffer, Size, hdrlen);
-    count--;
+    if (ipv6) {
+        snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(udph6->source), tempBuf, ntohs(udph6->dest));
+        printf("%s\n\n", finalBuf);
+        int hdrlen = ip6hdrlen + 14 + sizeof udph;
+        dataFlush(Buffer, Size, hdrlen);
+        count--;
+    }
+    else {
+        snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(udph->source), tempBuf, ntohs(udph->dest));
+        printf("%s\n\n", finalBuf);
+        int hdrlen = iphdrlen + 14 + sizeof udph;
+        dataFlush(Buffer, Size, hdrlen);
+        count--;
+
+    }
 
 }
 
@@ -377,7 +581,7 @@ int main(int argc, char** argv) {
                 break;
             }
 
-            if (countOfInterface == 0) {
+            if ((countOfInterface == 0) && (temp->next == NULL)) {
                 fprintf(stderr, "No valid interface was found!\n");
                 return EXIT_FAILURE;
             }
@@ -405,7 +609,7 @@ int main(int argc, char** argv) {
      *                Code was modified just a little for project purposes
      */
 
-    // for network mask, so we can apply a filter later on
+     // for network mask, so we can apply a filter later on
     if (pcap_lookupnet(userArgs.interface, &net, &mask, error) == -1) {
         fprintf(stderr, "Netmask wasn't found or enable to reach for device %s\n", userArgs.interface);
         net = 0;
