@@ -1,6 +1,6 @@
 #include "ipk-sniffer.h"
 
-/* structs prototypes fro gethostbyaddr() */
+/* structs prototypes for gethostbyaddr() */
 struct hostent* he;
 struct in_addr addr, addr2;
 struct sockaddr_in source, dest;
