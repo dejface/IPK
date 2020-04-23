@@ -1,12 +1,15 @@
 #include "ipk-sniffer.h"
 
+/* structs prototypes fro gethostbyaddr() */
 struct hostent* he;
 struct in_addr addr, addr2;
 struct sockaddr_in source, dest;
 
-int tcp = 0, udp = 0;
+/* global variables */
 char tempBuf[256], buf[1024];
+static int count = 0;
 
+/* struct which holds user params from commandline */
 struct userArgs {
     char* interface;
     char* port;
@@ -17,6 +20,7 @@ struct userArgs {
     bool portSet;
 } userArgs;
 
+/* initialization of struct */
 int initStruct() {
     userArgs.interface = "";
     userArgs.tcp = false;
@@ -33,19 +37,21 @@ int initStruct() {
     return 0;
 }
 
-
+/* Function which parses arguments and stores parametres in userArgs struct */
 int parseArgs(int argc, char** argv) {
     int opt;
     int port;
     char* endptr = NULL;
 
-    while ((opt = getopt(argc, argv, "i:p:tun:")) != -1) {
+    while ((opt = getopt(argc, argv, ":i:p:tun:")) != -1) {
         switch (opt) {
+        // interface option
         case 'i':
             userArgs.interface = optarg;
             userArgs.interfaceSet = true;
-            break;
+	    break;
 
+        // port option
         case 'p':
             port = (int)strtol(optarg, &endptr, 10);
             if (*endptr) {
@@ -56,14 +62,17 @@ int parseArgs(int argc, char** argv) {
             userArgs.portSet = true;
             break;
 
+        // if set, only tcp packets will be shown
         case 't':
             userArgs.tcp = true;
             break;
 
+        // if set, only udp packets will be shown
         case 'u':
             userArgs.udp = true;
             break;
 
+        // number of packets to be shown
         case 'n':
             userArgs.packetNumber = (int)strtol(optarg, &endptr, 10);
             if (*endptr) {
@@ -77,42 +86,48 @@ int parseArgs(int argc, char** argv) {
             }
             break;
 
-        default:
+       /* default:
             fprintf(stderr, "Wrong parameter!\n");
-            return 1;
+            return 1;*/
         }
     }
     return 0;
 }
 
+/* Callback function for pcap_loop()
+   Determines if packet is TCP or UDP and calls proper function
+*/
 void processPacket(u_char* args, const struct pcap_pkthdr* header, const u_char* buffer) {
 
     int size = header->len;
-    //Get the IP Header part of this packet , excluding the ethernet header
-
     struct iphdr* iph = (struct iphdr*)(buffer + sizeof(struct ethhdr));
 
     switch (iph->protocol) //Check the Protocol and do accordingly...
     {
     case 6:  //TCP Protocol
-        ++tcp;
-        print_tcp_packet(buffer, size);
+        printTCP(buffer, size);
         break;
 
     case 17: //UDP Protocol
-        ++udp;
-        print_udp_packet(buffer, size);
+        printUDP(buffer, size);
         break;
 
-    default: //Some Other Protocol like ARP etc.
+    default:
         break;
     }
 }
 
 
-/* This function was taken from http://simplestcodings.blogspot.com/2010/10/create-your-own-packet-sniffer-in-c.html
-   just a little changes for project purposes
-*/
+/* File name: sniffer.c
+ * Author: Copyright (c) 2002 Tim Carstens
+ * Date: 2002-01-07
+ * Author's description: Demonstration of using libpcap
+ * From website: tcpdump.org/sniffex.c
+ *
+ * My commentary: All rights reserved Tim Carstens
+ *                I just borrowed this function for writing hex lines of packets to stdout
+ *                Function was modfied a little for project purposes
+ */
 
 void print_hex_ascii_line(const u_char* payload, int len, int offset)
 {
@@ -161,14 +176,20 @@ void print_hex_ascii_line(const u_char* payload, int len, int offset)
     return;
 }
 
-/* This function was taken from http://simplestcodings.blogspot.com/2010/10/create-your-own-packet-sniffer-in-c.html
+/* File name: sniffer.c
+ * Author: Copyright (c) 2002 Tim Carstens
+ * Date: 2002-01-07
+ * Author's description: Demonstration of using libpcap
+ * From website: tcpdump.org/sniffex.c
+ *
+ * My commentary: All rights reserved Tim Carstens
+ *                I just borrowed this function for writing formated lines of packets to stdout
+ *                Function was modfied a little for project purposes by adding new parameter
+                  and block of code which splits header of packet and payload with a new line
+ */
 
-    just a little changes for project purposes
-
-*/
-
-void dataFlush(const u_char* payload, int len){
-
+void dataFlush(const u_char* payload, int len, int hdrlen) {
+    bool flag = false;
     int len_rem = len;
     int line_width = 16;   /* number of bytes per line */
     int line_len;
@@ -188,7 +209,20 @@ void dataFlush(const u_char* payload, int len){
     for (;; ) {
         /* compute current line length */
         line_len = line_width % len_rem;
-
+        
+        /* splitting header from payload */
+        if ((len_rem - (len - hdrlen)) < 16) {
+            if (flag == false) {
+                int temp = len_rem - (len - hdrlen);
+                print_hex_ascii_line(ch, temp, offset);
+                printf("\n");
+                len_rem = len_rem - (len_rem - (len - hdrlen));
+                ch = ch + temp;
+                offset = offset + temp;
+                flag = true;
+                continue;
+            }
+        }
         /* print line */
         print_hex_ascii_line(ch, line_len, offset);
 
@@ -213,6 +247,9 @@ void dataFlush(const u_char* payload, int len){
     return;
 }
 
+/* Function which get a timestamp and forms a header for our IPK project
+ * Format: timestamp IP/HOSTNAME : SOURCE_PORT > IP/HOSTNAME : DEST_PORT
+ */
 void getTimestamp(const u_char* Buffer, int Size) {
 
     struct iphdr* iph = (struct iphdr*)(Buffer + sizeof(struct ethhdr));
@@ -227,8 +264,8 @@ void getTimestamp(const u_char* Buffer, int Size) {
     nowtime = tv.tv_sec;
     nowtm = localtime(&nowtime);
 
-    strftime(tempBuf, sizeof(tempBuf), "%H:%M:%S", nowtm);
-    snprintf(buf, sizeof(buf), "%s.%06ld", tempBuf, tv.tv_usec);
+    strftime(tempBuf, sizeof(tempBuf), "%H:%M:%S", nowtm);          // time is written to tempBuf
+    snprintf(buf, sizeof(buf), "%s.%06ld", tempBuf, tv.tv_usec);    // appending microseconds to tempBuf and storing it in buf
 
     /* Get host name, if it is not possible, ip will be written*/
     memset(&source, 0, sizeof(source));
@@ -260,9 +297,11 @@ void getTimestamp(const u_char* Buffer, int Size) {
         snprintf(tempBuf, sizeof(tempBuf), "%s :", inet_ntoa(dest.sin_addr));
 }
 
-void print_tcp_packet(const u_char* Buffer, int Size) {
+/* Function which prints header of IPK project and TCP packet*/
+void printTCP(const u_char* Buffer, int Size) {
 
-    if (!userArgs.tcp && userArgs.udp) return;
+    if (!userArgs.tcp && userArgs.udp) return;  // if udp only packets should be printed, return from func
+    if (count == 0) return;                     // sometimes more packets were printed, so just a handler
 
     struct iphdr* iph = (struct iphdr*)(Buffer + sizeof(struct ethhdr));
     unsigned short iphdrlen = iph->ihl * 4;
@@ -273,13 +312,15 @@ void print_tcp_packet(const u_char* Buffer, int Size) {
 
     snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(tcph->source), tempBuf, ntohs(tcph->dest));
     printf("%s\n", finalBuf);
-    dataFlush(Buffer, Size);
-
+    int hdrlen = iphdrlen + 14 + tcph->doff * 4;
+    dataFlush(Buffer, Size, hdrlen);
+    count--;
 }
 
-void print_udp_packet(const u_char* Buffer, int Size) {
+void printUDP(const u_char* Buffer, int Size) {
 
     if (userArgs.tcp && !userArgs.udp) return;
+    if (count == 0) return;
 
     struct iphdr* iph = (struct iphdr*)(Buffer + sizeof(struct ethhdr));
     unsigned short iphdrlen = iph->ihl * 4;
@@ -290,7 +331,9 @@ void print_udp_packet(const u_char* Buffer, int Size) {
 
     snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(udph->source), tempBuf, ntohs(udph->dest));
     printf("%s\n", finalBuf);
-    dataFlush(Buffer, Size);
+    int hdrlen = iphdrlen + 14 + sizeof udph;
+    dataFlush(Buffer, Size, hdrlen);
+    count--;
 
 }
 
@@ -298,8 +341,9 @@ void print_udp_packet(const u_char* Buffer, int Size) {
 int main(int argc, char** argv) {
 
     int code = 0;
-    if (code = initStruct()) return code;                       // initialize struct for holding important data
+    if (code = initStruct()) return code;            // initialize struct for holding important data
     if (code = parseArgs(argc, argv)) return code;   // parses arguments
+    count = userArgs.packetNumber;
 
     char error[PCAP_ERRBUF_SIZE];       // buffer for error messages
     pcap_if_t* interfaces, * temp;
@@ -307,8 +351,8 @@ int main(int argc, char** argv) {
     bpf_u_int32 mask;		            // netmask of our sniffing device
     bpf_u_int32 net;
     int countOfInterface = 0, i = 0;
-    // finds all interfaces on system
 
+    // finds all interfaces on system
     if (pcap_findalldevs(&interfaces, error) == -1)
     {
         printf("Error in pcap_findalldevs\n");
@@ -321,7 +365,7 @@ int main(int argc, char** argv) {
         - if user doesn't specify interface, all of system interfaces are written to
           stdout and program ends with EXIT_SUCCESS
     */
-    for (temp = interfaces; temp; temp = temp->next){
+    for (temp = interfaces; temp; temp = temp->next) {
         if (userArgs.interfaceSet) {
             if (strcmp(userArgs.interface, temp->name) == 0) {
                 countOfInterface++;
@@ -332,20 +376,29 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "No valid interface was found!\n");
                 return EXIT_FAILURE;
             }
-        } else {
+        }
+        else {
             printf("%d. %s", ++i, temp->name);
             if (temp->description)
                 printf(" (%s)\n", temp->description);
             else
                 printf(" (No description available)\n");
 
-            if ((temp == NULL) && (countOfInterface == 0))
-                return EXIT_SUCCESS;
+            if ((temp->next == NULL) && (countOfInterface == 0))
+                return 0;
         }
     }
-    /* Following fragment of code was taken from https://www.tcpdump.org/pcap.html and modified for
-       my project purposes
-    */
+    /* File name: sniffer.c
+     * Author: Copyright (c) 2002 Tim Carstens
+     * Date: 2002-01-07
+     * Author's description: Demonstration of using libpcap
+     * From website: tcpdump.org/sniffex.c
+     *
+     * My commentary: All rights reserved Tim Carstens
+     *                Following fragment of code was borrowed from https://www.tcpdump.org/pcap.html ,
+     *                but it's property of Tim Carstens
+     *                Code was modified just a little for project purposes
+     */
 
     // for network mask, so we can apply a filter later on
     if (pcap_lookupnet(userArgs.interface, &net, &mask, error) == -1) {
