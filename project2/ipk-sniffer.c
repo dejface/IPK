@@ -311,7 +311,7 @@ void printTCP(const u_char* Buffer, int Size) {
     char finalBuf[1024];
 
     snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(tcph->source), tempBuf, ntohs(tcph->dest));
-    printf("%s\n", finalBuf);
+    printf("%s\n\n", finalBuf);
     int hdrlen = iphdrlen + 14 + tcph->doff * 4;
     dataFlush(Buffer, Size, hdrlen);
     count--;
@@ -330,7 +330,7 @@ void printUDP(const u_char* Buffer, int Size) {
     char finalBuf[1024];
 
     snprintf(finalBuf, sizeof(finalBuf), "%s %u > %s %u", buf, ntohs(udph->source), tempBuf, ntohs(udph->dest));
-    printf("%s\n", finalBuf);
+    printf("%s\n\n", finalBuf);
     int hdrlen = iphdrlen + 14 + sizeof udph;
     dataFlush(Buffer, Size, hdrlen);
     count--;
@@ -427,9 +427,9 @@ int main(int argc, char** argv) {
 
     pcap_freecode(&fp);     // pcap_compile() may have memory leak, so we have to free it
 
-    printf("\n");
     // loop with a callback function
     pcap_loop(dev, userArgs.packetNumber, processPacket, NULL);
     pcap_close(dev);
+    free(userArgs.port);
     return EXIT_SUCCESS;
 }
