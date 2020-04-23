@@ -58,6 +58,11 @@ int parseArgs(int argc, char** argv) {
                 fprintf(stderr, "Wrong port (-p) value!\n");
                 return 1;
             }
+	    if (port < 1024 || port > 65535) {
+		fprintf(stderr, "Wrong port (-p) value!\n"\
+		                "Must be in range 1024 <= port <= 65535\n");
+		return 1;
+	    }
             sprintf(userArgs.port, "port %d", port);
             userArgs.portSet = true;
             break;
@@ -86,9 +91,9 @@ int parseArgs(int argc, char** argv) {
             }
             break;
 
-       /* default:
+        default:
             fprintf(stderr, "Wrong parameter!\n");
-            return 1;*/
+            return 1;
         }
     }
     return 0;
