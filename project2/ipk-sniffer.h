@@ -17,6 +17,7 @@
 #include <pcap.h>
 #include <time.h>
 #include <ctype.h>
+#include <netinet/ip6.h>
 
 void processPacket(u_char* args, const struct pcap_pkthdr* header, const u_char* buffer);
 int parseArgs(int argc, char** argv);
