@@ -1,3 +1,11 @@
+/*******************************************************************************
+ * File: ipk-sniffer.h
+ * Author: David Oravec (xorave05)
+ * Description: - Header file for ipk-sniffer.c
+ *              - contains prototypes of functions and libraries
+ * 
+ *******************************************************************************/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
