@@ -165,9 +165,9 @@ int parseArgs(int argc, char** argv) {
                 fprintf(stderr, "Wrong port (-p) value!\n");
                 return 1;
             }
-            if (port < 1 || port > 65535) {
+            if (port < 0 || port > 65535) {
                 fprintf(stderr, "Wrong port (-p) value!\n"\
-                    "Must be in range 1 <= port <= 65535\n");
+                    "Must be in range 0 <= port <= 65535\n");
                 return 1;
             }
             sprintf(userArgs.port, "port %d", port);
@@ -456,8 +456,8 @@ void getTimestamp(const u_char* Buffer, int Size) {
         memset(&dest, 0, sizeof(dest));
         dest.sin_addr.s_addr = iph->daddr;
 
-        source.sin_family = AF_INET6;
-        dest.sin_family = AF_INET6;
+        source.sin_family = AF_INET;
+        dest.sin_family = AF_INET;
 
         addr = source.sin_addr;
         addr2 = dest.sin_addr;
