@@ -10,7 +10,7 @@
         * -u - zachytáva iba UDP pakety
         * *num* - musí byť väčšie ako 0, zobrazuje počet zachytených paketov
     * spustenie si vyžaduje administrátorské práva, aby sniffovanie mohlo byť uskutočnené. V tom prípade treba spúšťať s príkazom `sudo`
-        `sudo ./ipk-sniffer -i `*`interface`*` [-p `*`port`*`] [-t] [-u] [-n `*`num`*`] `
+        * `sudo ./ipk-sniffer -i `*`interface`*` [-p `*`port`*`] [-t] [-u] [-n `*`num`*`] `
 
 ## Zoznam odovzdaných súborov
 * xorave05.tar
